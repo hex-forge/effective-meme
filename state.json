@@ -1,0 +1,26 @@
+{
+  "last_available": 187,
+  "last_notified": 187,
+  "history": [
+    {
+      "timestamp": "2026-10-08T11:33:31",
+      "available": 187
+    },
+    {
+      "timestamp": "2026-10-08T12:16:03",
+      "available": 187
+    },
+    {
+      "timestamp": "2026-10-08T12:16:26",
+      "available": 187
+    },
+    {
+      "timestamp": "2026-10-08T12:16:33",
+      "available": 187
+    },
+    {
+      "timestamp": "2026-10-08T12:17:35",
+      "available": 187
+    }
+  ]
+}
