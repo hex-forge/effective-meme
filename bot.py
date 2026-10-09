@@ -9,6 +9,8 @@ from ocr import solve_image
 import requests
 import ssl
 from requests.adapters import HTTPAdapter
+from datetime import datetime, time as dt_time
+from zoneinfo import ZoneInfo
 #bot.py
 
 # ============================================================
@@ -87,6 +89,13 @@ class LegacyTLSAdapter(HTTPAdapter):#new testing class.
         ctx.options |= 0x4  # allow legacy server connect
         kwargs["ssl_context"] = ctx
         return super().init_poolmanager(*args, **kwargs)
+
+def is_maintenance_window():
+    now = datetime.now(ZoneInfo("Asia/Kolkata")).time()
+
+    # Skip midnight through 1:09 AM IST
+    return dt_time(0, 0) <= now < dt_time(1, 10)
+    
 def create_session():
     """
     Create one HTTP session.
@@ -354,6 +363,10 @@ def send_telegram(message):
 # ============================================================
 
 def main():
+    if is_maintenance_window():#checking maintianance/facnum error
+        print("Scheduled website downtime. Skipping this run.")
+        return
+
 
     # Load the previous seat availability state.
     state = load_state()
