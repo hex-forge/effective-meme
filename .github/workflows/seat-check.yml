@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-24.04    
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +31,8 @@ jobs:
 
       - name: Install Python deps
         run: pip install -r requirements.txt
-        
+
+      - name: Run bot (retry if CAPTCHA OCR is wrong)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
