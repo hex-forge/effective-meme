@@ -1,0 +1,53 @@
+name: Seat check
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # every 30 minutes (UTC)
+  workflow_dispatch:          # lets you run it manually
+
+permissions:
+  contents: write             # needed to commit state.json back
+
+concurrency:
+  group: seat-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Tesseract
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Run bot (retry if CAPTCHA OCR is wrong)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          for i in 1 2 3; do
+            python bot.py && exit 0
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+          exit 1
+
+      - name: Commit updated state
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          git diff --staged --quiet || (git commit -m "Update state [skip ci]" && git pull --rebase && git push)

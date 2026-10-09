@@ -1,0 +1,4 @@
+requests
+pytesseract
+opencv-python-headless
+pillow

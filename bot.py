@@ -7,7 +7,7 @@ from pathlib import Path
 from ocr import solve_image
 
 import requests
-
+#bot.py
 
 # ============================================================
 # JOURNEY CONFIGURATION

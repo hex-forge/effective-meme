@@ -23,6 +23,7 @@ from pathlib import Path
 
 import cv2
 import pytesseract
+#ocr.py
 
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
 WHITELIST = "0123456789+-=?xX"
