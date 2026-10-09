@@ -94,7 +94,7 @@ def is_maintenance_window():
     now = datetime.now(ZoneInfo("Asia/Kolkata")).time()
 
     # Skip midnight through 1:09 AM IST
-    return dt_time(0, 0) <= now < dt_time(1, 10)
+    return dt_time(0, 0) <= now < dt_time(0, 30)
     
 def create_session():
     """
