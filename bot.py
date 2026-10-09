@@ -7,6 +7,8 @@ from pathlib import Path
 from ocr import solve_image
 
 import requests
+import ssl
+from requests.adapters import HTTPAdapter
 #bot.py
 
 # ============================================================
@@ -78,7 +80,13 @@ COMMON_CAPTCHA_URL = f"{BASE_URL}/CommonCaptcha"
 # ============================================================
 # HTTP SESSION
 # ============================================================
-
+class LegacyTLSAdapter(HTTPAdapter):#new testing class.
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = ssl.create_default_context()
+        ctx.set_ciphers("DEFAULT@SECLEVEL=1")
+        ctx.options |= 0x4  # allow legacy server connect
+        kwargs["ssl_context"] = ctx
+        return super().init_poolmanager(*args, **kwargs)
 def create_session():
     """
     Create one HTTP session.
@@ -101,7 +109,7 @@ def create_session():
         ),
         "Accept-Language": "en-US,en;q=0.9",
     })
-
+    session.mount("https://", LegacyTLSAdapter())#testing
     return session
 
 
