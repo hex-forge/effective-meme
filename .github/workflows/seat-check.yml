@@ -31,7 +31,16 @@ jobs:
 
       - name: Install Python deps
         run: pip install -r requirements.txt
-
+        
+      - name: Debug TLS
+        continue-on-error: true
+        run: |
+          python -c "import ssl; print(ssl.OPENSSL_VERSION)"
+          curl -s https://ipinfo.io/json
+          echo "--- TLS 1.2 ---"
+          curl -sv --tlsv1.2 --max-time 20 -o /dev/null https://www.indianrail.gov.in/enquiry/SEAT/SeatAvailability.html 2>&1 | grep -iE "ssl|tls|alert|HTTP/|cipher" | head -15
+          echo "--- legacy ciphers ---"
+          curl -sv --ciphers 'DEFAULT@SECLEVEL=0' --max-time 20 -o /dev/null https://www.indianrail.gov.in/enquiry/SEAT/SeatAvailability.html 2>&1 | grep -iE "ssl|tls|alert|HTTP/|cipher" | head -15
       - name: Run bot (retry if CAPTCHA OCR is wrong)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
