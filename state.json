@@ -3,10 +3,6 @@
   "last_notified": 187,
   "history": [
     {
-      "timestamp": "2026-10-09T13:01:24",
-      "available": 187
-    },
-    {
       "timestamp": "2026-10-09T13:31:12",
       "available": 187
     },
@@ -400,6 +396,10 @@
     },
     {
       "timestamp": "2026-10-11T12:01:24",
+      "available": 187
+    },
+    {
+      "timestamp": "2026-10-11T12:31:16",
       "available": 187
     }
   ]
