@@ -478,32 +478,25 @@ def main():
     # Always remember the latest availability
     # --------------------------------------------------------
 
+
+    if current == state.get("last_available"):
+        print(f"Available: {current} (no change)")
+        return
+
     state["last_available"] = current
 
-    # Add this check to the history.
-    state.setdefault(
-        "history",
-        []
-    )
-
+    state.setdefault("history", [])
     state["history"].append({
         "timestamp": datetime.now().isoformat(
             timespec="seconds"
         ),
         "available": current
     })
-
-    # Keep only the most recent 100 checks.
     state["history"] = state["history"][-100:]
 
-    # Save everything for the next run.
     save_state(state)
 
-    # One useful output only.
-    print(
-        f"Available: {current}"
-    )
-
+    print(f"Available: {current} (changed)")
 
 # ============================================================
 # START PROGRAM
