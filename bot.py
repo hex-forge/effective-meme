@@ -3,14 +3,16 @@ import os
 import re
 import ssl
 import time
-from datetime import datetime, time as dt_time
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, timezone
+
 
 import requests
 from requests.adapters import HTTPAdapter
 
 from ocr import solve_image
+
+DOWN_ALERT_AFTER = timedelta(hours=1)
 
 # ============================================================
 # JOURNEY CONFIGURATION
@@ -66,12 +68,6 @@ class LegacyTLSAdapter(HTTPAdapter):
         ctx.options |= 0x4  # allow legacy server connect
         kwargs["ssl_context"] = ctx
         return super().init_poolmanager(*args, **kwargs)
-
-
-def is_maintenance_window():
-    """Skip midnight through 12:30 AM IST (railway site downtime)."""
-    now = datetime.now(ZoneInfo("Asia/Kolkata")).time()
-    return dt_time(0, 0) <= now < dt_time(0, 30)
 
 
 def create_session():
@@ -293,39 +289,112 @@ def update_history(state, current):
     return True
 
 
+
+
+def record_down(state):
+    """Called when the Railway site is unreachable."""
+    now = datetime.now(timezone.utc)
+
+    if not state.get("down_since"):
+        state["down_since"] = now.isoformat(timespec="seconds")
+        state["down_alerted"] = False
+        save_state(state)
+
+    since = datetime.fromisoformat(state["down_since"])
+    if not state.get("down_alerted") and now - since >= DOWN_ALERT_AFTER:
+        send_telegram(
+            "🔴 Railway enquiry site has been down for over 1 hour.\n"
+            f"Down since: {since.astimezone().isoformat(timespec='minutes')}"
+        )
+        state["down_alerted"] = True
+        save_state(state)
+
+
+def record_up(state):
+    """Called when the Railway site responded."""
+    if not state.get("down_since"):
+        return
+
+    if state.get("down_alerted"):
+        since = datetime.fromisoformat(state["down_since"])
+        mins = int((datetime.now(timezone.utc) - since).total_seconds() // 60)
+        send_telegram(f"🟢 Railway enquiry site is back online (was down ~{mins} min).")
+
+    state["down_since"] = None
+    state["down_alerted"] = False
+    save_state(state)
+
+
+def fetch_current(attempts=3):
+    """
+    Get the current seat count. Retries on CAPTCHA/OCR failures.
+    Network-level errors (requests.RequestException) are raised
+    immediately, since retrying won't help if the site is down.
+    """
+    last_err = None
+    for i in range(attempts):
+        try:
+            session = create_session()
+            get_captcha(session)
+            captcha = solve_image("captcha.png")
+            if not captcha:
+                raise ValueError("CAPTCHA cannot be empty.")
+            response = request_availability(session, captcha)
+            return get_available(response)
+        except requests.RequestException:
+            raise
+        except Exception as e:
+            last_err = e
+            print(f"Attempt {i + 1}/{attempts} failed: {e}")
+    raise last_err
+
 # ============================================================
 # MAIN BOT
 # ============================================================
 
 def main():
-    if is_maintenance_window():
-        print("Scheduled website downtime. Skipping this run.")
-        return
-
+    reply_only = os.getenv("MODE") == "reply"
     state = load_state()
-    session = create_session()
 
-    # STEP 1: download the CAPTCHA
-    get_captcha(session)
+    try:
+        current = fetch_current()
+    except requests.RequestException as e:
+        print(f"Railway site unreachable: {e}")
+        if reply_only:
+            send_telegram("⚠️ Railway site isn't responding right now. Try again in a bit.")
+        else:
+            record_down(state)
+        return
+    except Exception as e:
+        print(f"Check failed: {e}")
+        if reply_only:
+            send_telegram(f"⚠️ Couldn't get seats: {e}")
+            return
+        record_up(state)  # site answered, so it's up; just a CAPTCHA/parse problem
+        raise
 
-    # STEP 2: solve it with OCR
-    captcha = solve_image("captcha.png")
-    if not captcha:
-        raise ValueError("CAPTCHA cannot be empty.")
+    # Site responded
+    if not reply_only:
+        record_up(state)
 
-    # STEP 3: ask Indian Railways for availability
-    response = request_availability(session, captcha)
+    if reply_only:
+        shown = current if current is not None else "no numeric availability right now"
+        send_telegram(
+            f"🚆 {TRAIN_NO}\n"
+            f"{SOURCE} → {DESTINATION}\n"
+            f"18 Nov 2026 · {CLASS_CODE} · {QUOTA}\n\n"
+            f"Available now: {shown}"
+        )
+        return  # reply mode never touches state.json
 
-    # STEP 4: extract the number of available seats
-    current = get_available(response)
     if current is None:
         print("Availability is not currently AVAILABLE.")
         return
 
-    # STEP 5: alert logic (low-seat rule + big-drop rule)
+   
     check_and_notify(state, current)
 
-    # STEP 6: remember latest availability
+    
     update_history(state, current)
     save_state(state)  # always save, so last_notified is never lost
 
