@@ -106,12 +106,27 @@ GitHub's built-in `schedule` trigger can be delayed or skipped, so for reliable 
 - Public Actions minutes are free, but respect the railway site's terms and avoid checking more often than you need to.
 - CAPTCHA solving is OCR-based and will occasionally fail; the bot should simply retry on the next run.
 
-## Disclaimer
+## Dev
 
-This is an unofficial personal project and is not affiliated with Indian Railways or IRCTC.
+- Developed by **Steve**
+- Maintained by **Kenz** and **Rahul**
 
+## Disclaimer, No Liability and Legal Responsibility
 
+**Unofficial project.** This is an independent personal project. It is not affiliated with, endorsed by, or connected to Indian Railways, IRCTC, or any related organisation. All names and trademarks belong to their respective owners.
 
-##Dev
--credit to kenz and rahul for maintaining. 
--developed by steve.
+**Provided "as is".** This software is provided "as is", without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, accuracy, reliability, and non-infringement. Seat counts and alerts may be delayed, incorrect, or missed entirely (for example due to CAPTCHA failures, site changes, downtime, GitHub Actions delays, or Telegram outages). Do not rely on this bot to book, plan, or time any travel decision.
+
+**No liability.** To the maximum extent permitted by law, the author(s) and contributors shall not be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the use of, or inability to use, this software. This includes, without limitation, missed bookings, lost money, account suspension or blocking, and any direct, indirect, incidental, or consequential loss.
+
+**Your responsibility.** If you use, fork, or run this project, you alone are responsible for:
+
+- Complying with all applicable laws and regulations in your jurisdiction
+- Complying with the terms of service, acceptable use policies, and robots/automation rules of the Indian Railways / IRCTC website, GitHub, Telegram, and any other service you connect to
+- Deciding whether automated access and automated CAPTCHA solving are permitted for your use case, and not using this software where they are prohibited
+- Keeping your tokens, secrets, and credentials safe, and any costs or consequences of leaking them
+- Setting a reasonable check frequency so you do not overload or abuse any third-party service
+
+**Intended use.** This project is for personal and educational purposes only. It is not intended for commercial use, ticket touting, bulk or automated booking, or any activity that violates railway rules or the law. The author does not condone or support such use.
+
+**Not legal advice.** Nothing in this README is legal advice. If you are unsure whether your use is allowed, consult a qualified professional.
