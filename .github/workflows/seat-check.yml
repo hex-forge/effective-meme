@@ -1,13 +1,20 @@
 name: Seat check
 
 on:
-  workflow_dispatch:          # triggered by cron-job.org, or manually
+  workflow_dispatch:          # triggered by cron-job.org, Cloudflare Worker (!seat), or manually
+    inputs:
+      mode:
+        description: "reply = answer a !seat request (no state changes)"
+        required: false
+        default: ""
 
 permissions:
   contents: write             # needed to commit state.json back
 
+# Normal runs queue behind each other (they push state.json).
+# !seat replies use their own group so they never replace a queued cron run.
 concurrency:
-  group: seat-check
+  group: seat-check-${{ inputs.mode == 'reply' && 'reply' || 'normal' }}
   cancel-in-progress: false
 
 jobs:
@@ -16,8 +23,6 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
 
       - uses: actions/setup-python@v5
         with:
@@ -32,20 +37,15 @@ jobs:
       - name: Install Python deps
         run: pip install -r requirements.txt
 
-      - name: Run bot (retry if CAPTCHA OCR is wrong)
+      - name: Run bot
         env:
+          MODE: ${{ inputs.mode }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          for i in 1 2 3; do
-            python bot.py && exit 0
-            echo "Attempt $i failed, retrying..."
-            sleep 5
-          done
-          exit 1
+        run: python bot.py
 
       - name: Commit updated state
-        if: success()
+        if: success() && inputs.mode != 'reply'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
