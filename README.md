@@ -112,6 +112,6 @@ This is an unofficial personal project and is not affiliated with Indian Railway
 
 
 
-
-credit to kenz and rahul for maintaining 
-developed by steve
+##Dev
+-credit to kenz and rahul for maintaining. 
+-developed by steve.
