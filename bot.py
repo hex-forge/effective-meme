@@ -5,7 +5,7 @@ import ssl
 import time
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-
+from zoneinfo import ZoneInfo
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -13,6 +13,7 @@ from requests.adapters import HTTPAdapter
 from ocr import solve_image
 
 DOWN_ALERT_AFTER = timedelta(hours=1)
+LOCAL_TZ = ZoneInfo("Asia/Kolkata")
 
 # ============================================================
 # JOURNEY CONFIGURATION
@@ -43,6 +44,7 @@ LOW_SEAT_LIMIT = 10
 # ============================================================
 
 STATE_FILE = Path("state.json")
+DOWNTIME_FILE = Path("downtime.json")
 CAPTCHA_FILE = Path("captcha.png")
 RESPONSE_FILE = Path("last_response.json")
 
@@ -55,6 +57,18 @@ SEAT_PAGE_URL = f"{BASE_URL}/SEAT/SeatAvailability.html?locale=en"
 CAPTCHA_CONFIG_URL = f"{BASE_URL}/CaptchaConfig"
 CAPTCHA_IMAGE_URL = f"{BASE_URL}/captchaDraw.png"
 COMMON_CAPTCHA_URL = f"{BASE_URL}/CommonCaptcha"
+
+
+# ============================================================
+# MAINTENANCE DETECTION
+# ============================================================
+
+class SiteDownError(Exception):
+    """Railway site is in maintenance / not serving enquiries."""
+
+
+# Server messages that mean maintenance (lowercase substrings)
+MAINTENANCE_MARKERS = ("facnam", "facnum")
 
 
 # ============================================================
@@ -165,7 +179,10 @@ def request_availability(session, captcha):
         json.dump(data, f, indent=2)
 
     if data.get("errorMessage"):
-        raise RuntimeError(data["errorMessage"])
+        msg = data["errorMessage"]
+        if any(m in msg.lower() for m in MAINTENANCE_MARKERS):
+            raise SiteDownError(msg)
+        raise RuntimeError(msg)
 
     return data
 
@@ -289,46 +306,105 @@ def update_history(state, current):
     return True
 
 
+# ============================================================
+# DOWNTIME TRACKING (separate file: downtime.json)
+# ============================================================
+
+def load_downtime():
+    dt = {"down_since": None, "alerted": False, "history": []}
+    if DOWNTIME_FILE.exists():
+        try:
+            s = json.loads(DOWNTIME_FILE.read_text(encoding="utf-8"))
+            dt["down_since"] = s.get("down_since")
+            dt["alerted"] = bool(s.get("alerted", False))
+            dt["history"] = s.get("history", [])
+        except ValueError:
+            pass  # corrupt file -> start clean
+    return dt
 
 
-def record_down(state):
-    """Called when the Railway site is unreachable."""
+def save_downtime(dt):
+    DOWNTIME_FILE.write_text(json.dumps(dt, indent=2), encoding="utf-8")
+
+
+def fmt_local(d):
+    return d.astimezone(LOCAL_TZ).strftime("%d %b %Y, %I:%M %p IST")
+
+
+def fmt_duration(delta):
+    h, m = divmod(int(delta.total_seconds() // 60), 60)
+    return f"{h}h {m}m" if h else f"{m}m"
+
+
+def record_down(error):
+    """Site unreachable or in maintenance. Alert only after 1 hour."""
     now = datetime.now(timezone.utc)
+    dt = load_downtime()
 
-    if not state.get("down_since"):
-        state["down_since"] = now.isoformat(timespec="seconds")
-        state["down_alerted"] = False
-        save_state(state)
-
-    since = datetime.fromisoformat(state["down_since"])
-    if not state.get("down_alerted") and now - since >= DOWN_ALERT_AFTER:
-        send_telegram(
-            "🔴 Railway enquiry site has been down for over 1 hour.\n"
-            f"Down since: {since.astimezone().isoformat(timespec='minutes')}"
-        )
-        state["down_alerted"] = True
-        save_state(state)
-
-
-def record_up(state):
-    """Called when the Railway site responded."""
-    if not state.get("down_since"):
+    if not dt["down_since"]:
+        dt["down_since"] = now.isoformat()
+        save_downtime(dt)
         return
 
-    if state.get("down_alerted"):
-        since = datetime.fromisoformat(state["down_since"])
-        mins = int((datetime.now(timezone.utc) - since).total_seconds() // 60)
-        send_telegram(f"🟢 Railway enquiry site is back online (was down ~{mins} min).")
+    since = datetime.fromisoformat(dt["down_since"])
+    down_for = now - since
+    if dt["alerted"] or down_for < DOWN_ALERT_AFTER:
+        return
 
-    state["down_since"] = None
-    state["down_alerted"] = False
-    save_state(state)
+    try:
+        send_telegram(
+            "🔴 RAILWAY ENQUIRY SITE DOWN\n\n"
+            f"⏱ Down for {fmt_duration(down_for)} (since {fmt_local(since)})\n"
+            f"❗ Last error: {str(error)[:200]}"
+        )
+    except Exception as exc:
+        print(f"Could not send down alert: {exc}")
+        return  # alerted stays False -> retried next run
 
+    dt["alerted"] = True
+    save_downtime(dt)
+
+
+def record_up():
+    """Site responded. Log the outage; send 'back online' only if we alerted."""
+    dt = load_downtime()
+    if not dt["down_since"]:
+        return
+
+    now = datetime.now(timezone.utc)
+    since = datetime.fromisoformat(dt["down_since"])
+
+    if dt["alerted"]:
+        try:
+            send_telegram(
+                "🟢 RAILWAY ENQUIRY SITE BACK ONLINE\n\n"
+                f"⏱ Total downtime: {fmt_duration(now - since)}\n"
+                f"🕒 Recovered at {fmt_local(now)}"
+            )
+        except Exception as exc:
+            print(f"Could not send recovery alert: {exc}")
+            return  # keep state -> retried next run
+
+    dt["history"].append({
+        "start": dt["down_since"],
+        "end": now.isoformat(),
+        "minutes": int((now - since).total_seconds() // 60),
+        "alerted": dt["alerted"],
+    })
+    dt["history"] = dt["history"][-100:]
+    dt["down_since"] = None
+    dt["alerted"] = False
+    save_downtime(dt)
+
+
+# ============================================================
+# FETCH CURRENT SEATS
+# ============================================================
 
 def fetch_current(attempts=3):
     """
     Get the current seat count. Retries on CAPTCHA/OCR failures.
-    Network-level errors (requests.RequestException) are raised
+    Network errors and maintenance (SiteDownError) are raised
     immediately, since retrying won't help if the site is down.
     """
     last_err = None
@@ -341,12 +417,13 @@ def fetch_current(attempts=3):
                 raise ValueError("CAPTCHA cannot be empty.")
             response = request_availability(session, captcha)
             return get_available(response)
-        except requests.RequestException:
+        except (requests.RequestException, SiteDownError):
             raise
         except Exception as e:
             last_err = e
             print(f"Attempt {i + 1}/{attempts} failed: {e}")
     raise last_err
+
 
 # ============================================================
 # MAIN BOT
@@ -358,24 +435,24 @@ def main():
 
     try:
         current = fetch_current()
-    except requests.RequestException as e:
-        print(f"Railway site unreachable: {e}")
+    except (requests.RequestException, SiteDownError) as e:
+        print(f"Railway site unreachable/maintenance: {e}")
         if reply_only:
-            send_telegram("⚠️ Railway site isn't responding right now. Try again in a bit.")
+            send_telegram("⚠️ Railway site isn't responding right now (maintenance?). Try again in a bit.")
         else:
-            record_down(state)
+            record_down(e)
         return
     except Exception as e:
         print(f"Check failed: {e}")
         if reply_only:
             send_telegram(f"⚠️ Couldn't get seats: {e}")
             return
-        record_up(state)  # site answered, so it's up; just a CAPTCHA/parse problem
+        record_up()  # site answered, so it's up; just a CAPTCHA/parse problem
         raise
 
     # Site responded
     if not reply_only:
-        record_up(state)
+        record_up()
 
     if reply_only:
         shown = current if current is not None else "no numeric availability right now"
@@ -391,10 +468,8 @@ def main():
         print("Availability is not currently AVAILABLE.")
         return
 
-   
     check_and_notify(state, current)
 
-    
     update_history(state, current)
     save_state(state)  # always save, so last_notified is never lost
 
