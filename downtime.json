@@ -1,5 +1,12 @@
 {
-  "down_since": "2026-11-08T18:31:08.738471+00:00",
+  "down_since": null,
   "alerted": false,
-  "history": []
+  "history": [
+    {
+      "start": "2026-11-08T18:31:08.738471+00:00",
+      "end": "2026-11-08T19:01:28.890777+00:00",
+      "minutes": 30,
+      "alerted": false
+    }
+  ]
 }
