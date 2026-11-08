@@ -106,15 +106,14 @@ def create_session():
 
 def load_state():
     """Load state.json, or create an empty baseline on first run."""
-    if not STATE_FILE.exists():
-        return {
-            "last_available": None,
-            "last_notified": None,
-            "history": [],
-        }
-    with open(STATE_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
+    state = {"last_available": None, "last_notified": None, "history": []}
+    if STATE_FILE.exists():
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        for key in state:
+            if key in saved:
+                state[key] = saved[key]
+    return state
 
 def save_state(state):
     with open(STATE_FILE, "w", encoding="utf-8") as f:
