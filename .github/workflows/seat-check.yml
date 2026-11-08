@@ -9,9 +9,9 @@ on:
         default: ""
 
 permissions:
-  contents: write             # needed to commit state.json back
+  contents: write             # needed to commit state files back
 
-# Normal runs queue behind each other (they push state.json).
+# Normal runs queue behind each other (they push state files).
 # !seat replies use their own group so they never replace a queued cron run.
 concurrency:
   group: seat-check-${{ inputs.mode == 'reply' && 'reply' || 'normal' }}
@@ -45,16 +45,22 @@ jobs:
         run: python bot.py
 
       - name: Commit updated state
-        if: success() && inputs.mode != 'reply'
+        if: ${{ !cancelled() && inputs.mode != 'reply' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          cp state.json /tmp/state.json
+
+          # Save whichever state files exist (downtime.json only exists after the first outage)
+          mkdir -p /tmp/keep
+          for f in state.json downtime.json; do
+            if [ -f "$f" ]; then cp "$f" /tmp/keep/; fi
+          done
+
           for i in 1 2 3; do
             git fetch origin main
             git reset --hard origin/main
-            cp /tmp/state.json state.json
-            git add state.json
+            cp /tmp/keep/* . 2>/dev/null || true
+            git add -- $(ls /tmp/keep)
             git diff --staged --quiet && exit 0
             git commit -m "Update state [skip ci]"
             git push origin HEAD:main && exit 0
