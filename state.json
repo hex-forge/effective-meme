@@ -1,5 +1,5 @@
 {
-  "last_available": 77,
+  "last_available": 76,
   "last_notified": 83,
   "history": [
     {
@@ -277,6 +277,10 @@
     {
       "timestamp": "2026-11-12T05:01:30",
       "available": 77
+    },
+    {
+      "timestamp": "2026-11-12T07:31:02",
+      "available": 76
     }
   ]
 }
