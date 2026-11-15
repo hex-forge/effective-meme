@@ -1,11 +1,7 @@
 {
-  "last_available": 38,
+  "last_available": 37,
   "last_notified": 42,
   "history": [
-    {
-      "timestamp": "2026-10-11T13:01:21",
-      "available": 184
-    },
     {
       "timestamp": "2026-10-15T14:31:21",
       "available": 185
@@ -401,6 +397,10 @@
     {
       "timestamp": "2026-11-14T18:01:48",
       "available": 38
+    },
+    {
+      "timestamp": "2026-11-15T02:01:24",
+      "available": 37
     }
   ]
 }
