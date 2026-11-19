@@ -431,6 +431,7 @@ def fetch_current(attempts=3):
 def main(): return #remove
     reply_only = os.getenv("MODE") == "reply"
     state = load_state()
+   return #removd
 
     try:
         current = fetch_current()
