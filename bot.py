@@ -428,7 +428,7 @@ def fetch_current(attempts=3):
 # MAIN BOT
 # ============================================================
 
-def main():
+def main(): return #remove
     reply_only = os.getenv("MODE") == "reply"
     state = load_state()
 
